@@ -103,22 +103,18 @@ def send_message(cid, text):
                 as_user='true'))
 
 
-def parse_join(message):
-    m = json.loads(message)
+def handle_join(m):
+    uid = m['user']['id']
+    resp = requests.post('https://slack.com/api/im.open',
+            params=dict(
+                token=TOKEN,
+                user=uid)).json()
+    cid = resp['channel']['id']
+    send_message(cid, MESSAGE)
 
-    if m['type'] == "team_join":
-        uid = m['user']['id']
-        resp = requests.post('https://slack.com/api/im.open',
-                params=dict(
-                    token=TOKEN,
-                    user=uid)).json()
-        cid = resp['channel']['id']
-        send_message(cid, MESSAGE)
 
-        #DEBUG
-        #print '\033[91m' + "HELLO SENT" + m["user"]["id"] + '\033[0m'
-        #
-    elif is_regular_message(m):
+def handle_message(m):
+    if is_regular_message(m):
         cid = m["channel"]
         slack_urls = extract_slack_urls(m["text"])
 
@@ -139,8 +135,16 @@ def start_rtm():
     return json['url']
 
 
+EVENT_HANDLERS = {
+    'team_join': handle_join,
+    'message': handle_message,
+}
+
 def on_message(ws, message):
-    parse_join(message)
+    event = json.loads(message)
+    handler = EVENT_HANDLERS.get(event['type'])
+    if handler:
+        handler(event)
 
 
 def on_error(ws, error):
