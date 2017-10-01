@@ -145,22 +145,22 @@ EVENT_HANDLERS = {
     'message': handle_message,
 }
 
-def on_message(ws, message):
+def on_ws_message(ws, message):
     event = json.loads(message)
     handler = EVENT_HANDLERS.get(event['type'])
     if handler:
         handler(event)
 
 
-def on_error(ws, error):
+def on_ws_error(ws, error):
     print "SOME ERROR HAS HAPPENED", error
 
 
-def on_close(ws):
+def on_ws_close(ws):
     print '\033[91m'+"Connection Closed"+'\033[0m'
 
 
-def on_open(ws):
+def on_ws_open(ws):
     print "Connection Started - Auto Greeting new joiners to the network"
 
 
@@ -168,9 +168,9 @@ if __name__ == "__main__":
     rtm_resp = start_rtm()
     _self_uid = rtm_resp['self']['id']
     ws = websocket.WebSocketApp(rtm_resp['url'],
-                                on_message=on_message,
-                                on_error=on_error,
-                                on_close=on_close)
+                                on_message=on_ws_message,
+                                on_error=on_ws_error,
+                                on_close=on_ws_close)
     #ws.on_open
     #ssl_defaults = ssl.get_default_verify_paths()
     ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
