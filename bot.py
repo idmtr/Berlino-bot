@@ -153,15 +153,15 @@ def on_ws_message(ws, message):
 
 
 def on_ws_error(ws, error):
-    print "SOME ERROR HAS HAPPENED", error
+    print("SOME ERROR HAS HAPPENED", error)
 
 
 def on_ws_close(ws):
-    print '\033[91m'+"Connection Closed"+'\033[0m'
+    print('\033[91m'+"Connection Closed"+'\033[0m')
 
 
 def on_ws_open(ws):
-    print "Connection Started - Auto Greeting new joiners to the network"
+    print("Connection Started - Auto Greeting new joiners to the network")
 
 
 if __name__ == "__main__":
