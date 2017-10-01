@@ -192,6 +192,8 @@ def main():
 
 
 def setup_logging():
+    logging.basicConfig()
+
     log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
     if log_level in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
         log_level = getattr(logging, log_level)
