@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import logging
 import json
+import logging
 import os
-import ssl
 import re
+import ssl
+import threading
 import urlparse
 from collections import namedtuple
 
-import websocket
 import requests
+import websocket
 
 log = logging.getLogger(__name__)
 
@@ -118,35 +119,38 @@ def handle_message(event):
     def should_parse_urls(event):
         global _self_uid
         return (
-            event['user'] != _self_uid and
-            event.get('subtype', None) in
-                (None, 'me_message')
+            event.get('user') not in (None, _self_uid) and
+            event.get('subtype') in (None, 'me_message')
         )
 
     if should_parse_urls(event):
-        cid = event['channel']
-        slack_urls = extract_slack_urls(event['text'])
+        threading.Thread(target=parse_urls, args=(event,)).run()
 
-        redirects = []
 
-        for slack_url in slack_urls:
-            log.debug('URL-Fetcher: Checking %s', slack_url)
-            try:
-                req = requests.head(slack_url.transformed,
-                        headers={'User-Agent': SNEAKY_USER_AGENT},
-                        allow_redirects=True)
-            except requests.RequestException as e:
-                log.exception('Error fetching URL %s', slack_url)
-            else:
-                final_url = req.url
-                log.debug('Redirected URL was: %s', final_url)
-                if not is_human_equal(slack_url.transformed, final_url):
-                    redirects.append(":mag_right: {url} redirects to {final_url}".format(
-                        url=slack_url.original, final_url=final_url))
+def parse_urls(event):
+    cid = event['channel']
+    slack_urls = extract_slack_urls(event['text'])
 
-        if redirects:
-            notice = "\n".join(redirects)
-            send_message(cid, notice, unfurl_links='false')
+    redirects = []
+
+    for slack_url in slack_urls:
+        log.debug('URL-Fetcher: Checking %s', slack_url)
+        try:
+            req = requests.head(slack_url.transformed,
+                    headers={'User-Agent': SNEAKY_USER_AGENT},
+                    allow_redirects=True)
+        except requests.RequestException as e:
+            log.exception('Error fetching URL %s', slack_url)
+        else:
+            final_url = req.url
+            log.debug('Redirected URL was: %s', final_url)
+            if not is_human_equal(slack_url.transformed, final_url):
+                redirects.append(":mag_right: {url} redirects to {final_url}".format(
+                    url=slack_url.original, final_url=final_url))
+
+    if redirects:
+        notice = "\n".join(redirects)
+        send_message(cid, notice, unfurl_links='false')
 
 
 def start_rtm():
