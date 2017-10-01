@@ -84,12 +84,12 @@ def extract_slack_urls(message):
     return [slack_url(wrapped_url) for wrapped_url in wrapped_urls]
 
 
-def is_regular_message(message):
+def is_regular_message(event):
     return (
-        message['user'] != "USLACKBOT" and
-        message['type'] == "message" and
+        event['user'] != "USLACKBOT" and
+        event['type'] == "message" and
         'subtype' not in message and
-        not message["text"].startswith(redirection_prefix)
+        not event['text'].startswith(redirection_prefix)
     )
 
 
@@ -103,8 +103,8 @@ def send_message(cid, text):
                 as_user='true'))
 
 
-def handle_join(m):
-    uid = m['user']['id']
+def handle_join(event):
+    uid = event['user']['id']
     resp = requests.post('https://slack.com/api/im.open',
             params=dict(
                 token=TOKEN,
@@ -113,10 +113,10 @@ def handle_join(m):
     send_message(cid, MESSAGE)
 
 
-def handle_message(m):
-    if is_regular_message(m):
-        cid = m["channel"]
-        slack_urls = extract_slack_urls(m["text"])
+def handle_message(event):
+    if is_regular_message(event):
+        cid = event['channel']
+        slack_urls = extract_slack_urls(event['text'])
 
         for slack_url in slack_urls:
             req = requests.get(slack_url.transformed)
