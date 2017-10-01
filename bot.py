@@ -73,14 +73,14 @@ def extract_slack_urls(message):
     """
 
     def slack_url(wrapped_url):
-        if "|" in wrapped_url:
-            transformed_url, original_url = wrapped_url.split("|")
+        if '|' in wrapped_url:
+            transformed_url, original_url = wrapped_url.split('|', 1)
         else:
             transformed_url = original_url = wrapped_url
 
         return SlackURL(original_url, transformed_url)
 
-    wrapped_urls = re.findall("<([^>]+)>", message)
+    wrapped_urls = re.findall(r'<(http[^>]+)>', message)
 
     return [slack_url(wrapped_url) for wrapped_url in wrapped_urls]
 
@@ -121,8 +121,8 @@ def parse_join(message):
                 send_message(cid, message)
 
 
-#Connects to Slacks and initiates socket handshake        
 def start_rtm():
+    """Connect to slack and initiate socket handshake; returns JSON response"""
     r = requests.get("https://slack.com/api/rtm.start?token="+TOKEN, verify=False)
     r = r.json()
     r = r["url"]
