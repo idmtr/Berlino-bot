@@ -135,7 +135,7 @@ def handle_message(event):
                     url=slack_url.original, final_url=final_url))
 
         if redirects:
-            notice = "Redirection notice: {}".format(", ".join(redirects))
+            notice = ":mag_right: {}".format(", ".join(redirects))
             send_message(cid, notice)
 
 
