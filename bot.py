@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
-import websocket
 import json
-import requests
 import os
 import ssl
 import re
 import urlparse
 from collections import namedtuple
+
+import websocket
+import requests
 
 log = logging.getLogger(__name__)
 
@@ -129,17 +130,21 @@ def handle_message(event):
 
         for slack_url in slack_urls:
             log.debug('URL-Fetcher: Checking %s', slack_url)
-            req = requests.head(slack_url.transformed,
-                    headers={'User-Agent': SNEAKY_USER_AGENT},
-                    allow_redirects=True)
-            final_url = req.url
-            log.debug('Redirected URL was: %s', final_url)
-            if not is_human_equal(slack_url.transformed, final_url):
-                redirects.append("{url} redirects to {final_url}".format(
-                    url=slack_url.original, final_url=final_url))
+            try:
+                req = requests.head(slack_url.transformed,
+                        headers={'User-Agent': SNEAKY_USER_AGENT},
+                        allow_redirects=True)
+            except requests.RequestException as e:
+                log.exception('Error fetching URL %s', slack_url)
+            else:
+                final_url = req.url
+                log.debug('Redirected URL was: %s', final_url)
+                if not is_human_equal(slack_url.transformed, final_url):
+                    redirects.append(":mag_right: {url} redirects to {final_url}".format(
+                        url=slack_url.original, final_url=final_url))
 
         if redirects:
-            notice = ":mag_right: {}".format(", ".join(redirects))
+            notice = "\n".join(redirects)
             send_message(cid, notice)
 
 
