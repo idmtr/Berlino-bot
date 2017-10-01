@@ -1,11 +1,14 @@
+import logging
 import websocket
 import json
 import requests
 import os
 import ssl
-from collections import namedtuple
 import re
 import urlparse
+from collections import namedtuple
+
+log = logging.getLogger(__name__)
 
 ###VARIABLES THAT YOU NEED TO SET MANUALLY IF NOT ON HEROKU#####
 try:
@@ -153,24 +156,35 @@ def on_ws_message(ws, message):
 
 
 def on_ws_error(ws, error):
-    print("SOME ERROR HAS HAPPENED", error)
+    log.error('Websocket error: %r', error)
 
 
 def on_ws_close(ws):
-    print('\033[91m'+"Connection Closed"+'\033[0m')
+    log.warning('Websocket connection closed')
 
 
 def on_ws_open(ws):
-    print("Connection Started - Auto Greeting new joiners to the network")
+    log.info('Websocket connected')
+
+
+def main():
+    global _self_uid
+
+    rtm_resp = start_rtm()
+    _self_uid = rtm_resp['self']['id']
+    log.info('Berlino-Bot UID: %s', _self_uid)
+    ws_url = rtm_resp['url']
+    ws = websocket.WebSocketApp(ws_url,
+                                on_message=on_ws_message,
+                                on_error=on_ws_error,
+                                on_close=on_ws_close,
+                                on_open=on_ws_open)
+    #ssl_defaults = ssl.get_default_verify_paths()
+    log.info('Creating websocket to %s', ws_url)
+    ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
 
 
 if __name__ == "__main__":
-    rtm_resp = start_rtm()
-    _self_uid = rtm_resp['self']['id']
-    ws = websocket.WebSocketApp(rtm_resp['url'],
-                                on_message=on_ws_message,
-                                on_error=on_ws_error,
-                                on_close=on_ws_close)
-    #ws.on_open
-    #ssl_defaults = ssl.get_default_verify_paths()
-    ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+    log.setLevel(log.INFO)
+    log.info("🤖 Berlino-Bot Boot Sequence Initiated 🤖")
+    main()
