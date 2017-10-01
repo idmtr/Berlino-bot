@@ -172,6 +172,8 @@ def on_ws_open(ws):
 def main():
     global _self_uid
 
+    log.info("🤖 Berlino-Bot Boot Sequence Initiated 🤖")
+
     rtm_resp = start_rtm()
     _self_uid = rtm_resp['self']['id']
     log.info('Berlino-Bot UID: %s', _self_uid)
@@ -186,7 +188,13 @@ def main():
     ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
 
 
-if __name__ == "__main__":
+def setup_logging():
     log.setLevel(logging.INFO)
-    log.info("🤖 Berlino-Bot Boot Sequence Initiated 🤖")
+    fmt = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+    h = logging.StreamHandler()
+    h.setFormatter(fmt)
+    log.addHandler(h)
+
+if __name__ == "__main__":
+    setup_logging()
     main()
