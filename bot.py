@@ -16,7 +16,7 @@ except:
 	TOKEN = 'Manually set the API Token if youre not running through heroku or have not set vars in ENV'
 ###############################################################
 
-redirection_prefix = "Redirect alert:"
+_self_uid = None
 
 SlackURL = namedtuple('SlackURL', ['original', 'transformed'])
 
@@ -84,15 +84,6 @@ def extract_slack_urls(message):
     return [slack_url(wrapped_url) for wrapped_url in wrapped_urls]
 
 
-def is_regular_message(event):
-    return (
-        event['user'] != "USLACKBOT" and
-        event['type'] == "message" and
-        'subtype' not in message and
-        not event['text'].startswith(redirection_prefix)
-    )
-
-
 def send_message(cid, text):
     return requests.post('https://slack.com/api/chat.postMessage',
             params=dict(
@@ -114,14 +105,22 @@ def handle_join(event):
 
 
 def handle_message(event):
-    if is_regular_message(event):
+    def should_parse_urls(event):
+        global _self_uid
+        return (
+            event['user'] != _self_uid and
+            event.get('subtype', None) in
+                (None, 'me_message')
+        )
+
+    if should_parse_urls(event):
         cid = event['channel']
         slack_urls = extract_slack_urls(event['text'])
 
         for slack_url in slack_urls:
             req = requests.get(slack_url.transformed)
             if not is_human_equal(slack_url.transformed, req.url):
-                message = " ".join([redirection_prefix, slack_url.original, "redirects to", req.url])
+                message = " ".join(["Redirect alert:", slack_url.original, "redirects to", req.url])
                 send_message(cid, message)
 
 
@@ -131,8 +130,7 @@ def start_rtm():
             params=dict(
                 token=TOKEN),
             verify=False)
-    json = resp.json()
-    return json['url']
+    return resp.json()
 
 
 EVENT_HANDLERS = {
@@ -160,8 +158,12 @@ def on_open(ws):
 
 
 if __name__ == "__main__":
-    r = start_rtm()
-    ws = websocket.WebSocketApp(r, on_message = on_message, on_error = on_error, on_close = on_close)
+    rtm_resp = start_rtm()
+    _self_uid = rtm_resp['self']['id']
+    ws = websocket.WebSocketApp(rtm_resp['url'],
+                                on_message=on_message,
+                                on_error=on_error,
+                                on_close=on_close)
     #ws.on_open
-    ssl_defaults = ssl.get_default_verify_paths()
+    #ssl_defaults = ssl.get_default_verify_paths()
     ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
