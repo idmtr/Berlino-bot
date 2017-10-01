@@ -120,7 +120,7 @@ def handle_message(event):
         redirects = []
 
         for slack_url in slack_urls:
-            req = requests.get(slack_url.transformed)
+            req = requests.head(slack_url.transformed, allows_redirects=True)
             final_url = req.url
             if not is_human_equal(slack_url.transformed, final_url):
                 redirects.append("{url} redirects to {final_url}".format(
