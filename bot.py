@@ -9,7 +9,7 @@ import urlparse
 
 ###VARIABLES THAT YOU NEED TO SET MANUALLY IF NOT ON HEROKU#####
 try:
-	MESSAGE = os.environ['WELCOME-MESSAGE'] 
+	MESSAGE = os.environ['WELCOME-MESSAGE']
 	TOKEN = os.environ['SLACK-TOKEN']
 except:
 	MESSAGE = 'Manually set the Message if youre not running through heroku or have not set vars in ENV'
@@ -32,7 +32,7 @@ def normalize_url_human(url):
     >>> normalize_url_human("https://google.com/derp").geturl()
     '//google.com/derp'
     """
-    
+
     parsed_url = urlparse.urlparse(url)
     dict_ = parsed_url._asdict()
     dict_['scheme'] = ""
