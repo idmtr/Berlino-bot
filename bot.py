@@ -1,7 +1,6 @@
 import websocket
 import json
 import requests
-import urllib
 import os
 import ssl
 from collections import namedtuple
@@ -10,14 +9,14 @@ import urlparse
 
 ###VARIABLES THAT YOU NEED TO SET MANUALLY IF NOT ON HEROKU#####
 try:
-	MESSAGE = os.environ['WELCOME-MESSAGE'] 
+	WELCOME_MESSAGE = os.environ['WELCOME-MESSAGE']
 	TOKEN = os.environ['SLACK-TOKEN']
 except:
-	MESSAGE = 'Manually set the Message if youre not running through heroku or have not set vars in ENV'
+	WELCOME_MESSAGE = 'Manually set the Message if youre not running through heroku or have not set vars in ENV'
 	TOKEN = 'Manually set the API Token if youre not running through heroku or have not set vars in ENV'
 ###############################################################
 
-redirection_prefix = "Redirect alert:"
+_self_uid = None
 
 SlackURL = namedtuple('SlackURL', ['original', 'transformed'])
 
@@ -33,7 +32,7 @@ def normalize_url_human(url):
     >>> normalize_url_human("https://google.com/derp").geturl()
     '//google.com/derp'
     """
-    
+
     parsed_url = urlparse.urlparse(url)
     dict_ = parsed_url._asdict()
     dict_['scheme'] = ""
@@ -73,81 +72,105 @@ def extract_slack_urls(message):
     """
 
     def slack_url(wrapped_url):
-        if "|" in wrapped_url:
-            transformed_url, original_url = wrapped_url.split("|")
+        if '|' in wrapped_url:
+            transformed_url, original_url = wrapped_url.split('|', 1)
         else:
             transformed_url = original_url = wrapped_url
 
         return SlackURL(original_url, transformed_url)
 
-    wrapped_urls = re.findall("<([^>]+)>", message)
+    wrapped_urls = re.findall(r'<(http[^>]+)>', message)
 
     return [slack_url(wrapped_url) for wrapped_url in wrapped_urls]
 
 
-def is_regular_message(message):
-    return (
-        message['user'] != "USLACKBOT" and
-        message['type'] == "message" and
-        'subtype' not in message and
-        not message["text"].startswith(redirection_prefix)
-    )
+def send_message(cid, text):
+    return requests.post('https://slack.com/api/chat.postMessage',
+            params=dict(
+                token=TOKEN,
+                channel=cid,
+                text=text,
+                parse='full',
+                as_user='true'))
 
 
-def send_message(cid, message):
-    return requests.post("https://slack.com/api/chat.postMessage?token="+TOKEN+"&channel="+cid+"&text="+urllib.quote(message)+"&parse=full&as_user=true")
+def handle_join(event):
+    uid = event['user']['id']
+    resp = requests.post('https://slack.com/api/im.open',
+            params=dict(
+                token=TOKEN,
+                user=uid)).json()
+    cid = resp['channel']['id']
+    send_message(cid, WELCOME_MESSAGE)
 
 
-def parse_join(message):
-    m = json.loads(message)
+def handle_message(event):
+    def should_parse_urls(event):
+        global _self_uid
+        return (
+            event['user'] != _self_uid and
+            event.get('subtype', None) in
+                (None, 'me_message')
+        )
 
-    if m['type'] == "team_join":
-        x = requests.get("https://slack.com/api/im.open?token="+TOKEN+"&user="+m["user"]["id"])
-        x = x.json()
-        x = x["channel"]["id"]
-        send_message(x, MESSAGE)
+    if should_parse_urls(event):
+        cid = event['channel']
+        slack_urls = extract_slack_urls(event['text'])
 
-        #DEBUG
-        #print '\033[91m' + "HELLO SENT" + m["user"]["id"] + '\033[0m'
-        #
-    elif is_regular_message(m):
-        cid = m["channel"]
-        slack_urls = extract_slack_urls(m["text"])
+        redirects = []
 
         for slack_url in slack_urls:
-            req = requests.get(slack_url.transformed)
-            if not is_human_equal(slack_url.transformed, req.url):
-                message = " ".join([redirection_prefix, slack_url.original, "redirects to", req.url])
-                send_message(cid, message)
+            req = requests.head(slack_url.transformed, allows_redirects=True)
+            final_url = req.url
+            if not is_human_equal(slack_url.transformed, final_url):
+                redirects.append("{url} redirects to {final_url}".format(
+                    url=slack_url.original, final_url=final_url))
+
+        if redirects:
+            notice = "Redirection notice: {}".format(", ".join(redirects))
+            send_message(cid, notice)
 
 
-#Connects to Slacks and initiates socket handshake        
 def start_rtm():
-    r = requests.get("https://slack.com/api/rtm.start?token="+TOKEN, verify=False)
-    r = r.json()
-    r = r["url"]
-    return r
+    """Connect to slack and initiate socket handshake; returns JSON response"""
+    resp = requests.post("https://slack.com/api/rtm.start",
+            params=dict(
+                token=TOKEN),
+            verify=False)
+    return resp.json()
 
 
-def on_message(ws, message):
-    parse_join(message)
+EVENT_HANDLERS = {
+    'team_join': handle_join,
+    'message': handle_message,
+}
+
+def on_ws_message(ws, message):
+    event = json.loads(message)
+    handler = EVENT_HANDLERS.get(event['type'])
+    if handler:
+        handler(event)
 
 
-def on_error(ws, error):
-    print "SOME ERROR HAS HAPPENED", error
+def on_ws_error(ws, error):
+    print("SOME ERROR HAS HAPPENED", error)
 
 
-def on_close(ws):
-    print '\033[91m'+"Connection Closed"+'\033[0m'
+def on_ws_close(ws):
+    print('\033[91m'+"Connection Closed"+'\033[0m')
 
 
-def on_open(ws):
-    print "Connection Started - Auto Greeting new joiners to the network"
+def on_ws_open(ws):
+    print("Connection Started - Auto Greeting new joiners to the network")
 
 
 if __name__ == "__main__":
-    r = start_rtm()
-    ws = websocket.WebSocketApp(r, on_message = on_message, on_error = on_error, on_close = on_close)
+    rtm_resp = start_rtm()
+    _self_uid = rtm_resp['self']['id']
+    ws = websocket.WebSocketApp(rtm_resp['url'],
+                                on_message=on_ws_message,
+                                on_error=on_ws_error,
+                                on_close=on_ws_close)
     #ws.on_open
-    ssl_defaults = ssl.get_default_verify_paths()
+    #ssl_defaults = ssl.get_default_verify_paths()
     ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
