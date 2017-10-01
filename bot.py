@@ -92,7 +92,7 @@ def extract_slack_urls(message):
     return [slack_url(wrapped_url) for wrapped_url in wrapped_urls]
 
 
-def send_message(cid, text):
+def send_message(cid, text, **kwargs):
     log.debug('Sending to CID %s: %r', cid, text)
     return requests.post('https://slack.com/api/chat.postMessage',
             params=dict(
@@ -100,7 +100,8 @@ def send_message(cid, text):
                 channel=cid,
                 text=text,
                 parse='full',
-                as_user='true'))
+                as_user='true',
+                **kwargs))
 
 
 def handle_join(event):
@@ -145,7 +146,7 @@ def handle_message(event):
 
         if redirects:
             notice = "\n".join(redirects)
-            send_message(cid, notice)
+            send_message(cid, notice, unfurl_links='false')
 
 
 def start_rtm():
