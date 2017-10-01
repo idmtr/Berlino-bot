@@ -90,6 +90,7 @@ def extract_slack_urls(message):
 
 
 def send_message(cid, text):
+    log.debug('Sending to CID %s: %r', cid, text)
     return requests.post('https://slack.com/api/chat.postMessage',
             params=dict(
                 token=TOKEN,
@@ -125,6 +126,7 @@ def handle_message(event):
         redirects = []
 
         for slack_url in slack_urls:
+            log.debug('URL-Fetcher: Checking %s', slack_url)
             req = requests.head(slack_url.transformed, allows_redirects=True)
             final_url = req.url
             if not is_human_equal(slack_url.transformed, final_url):
@@ -189,8 +191,14 @@ def main():
 
 
 def setup_logging():
-    log.setLevel(logging.INFO)
-    fmt = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+    log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+    if log_level in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
+        log_level = getattr(logging, log_level)
+    else:
+        log_level = logging.INFO
+
+    log.setLevel(log_level)
+    fmt = logging.Formatter('[Berlino-Bot] %(levelname)s - %(name)s - %(message)s')
     h = logging.StreamHandler()
     h.setFormatter(fmt)
     log.addHandler(h)
