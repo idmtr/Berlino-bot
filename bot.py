@@ -127,7 +127,7 @@ def handle_message(event):
 
         for slack_url in slack_urls:
             log.debug('URL-Fetcher: Checking %s', slack_url)
-            req = requests.head(slack_url.transformed, allows_redirects=True)
+            req = requests.head(slack_url.transformed, allow_redirects=True)
             final_url = req.url
             log.debug('Redirected URL was: %s', final_url)
             if not is_human_equal(slack_url.transformed, final_url):
