@@ -192,8 +192,6 @@ def main():
 
 
 def setup_logging():
-    logging.basicConfig()
-
     log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
     if log_level in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
         log_level = getattr(logging, log_level)
@@ -204,7 +202,7 @@ def setup_logging():
     fmt = logging.Formatter('[Berlino-Bot] %(levelname)s - %(name)s - %(message)s')
     h = logging.StreamHandler()
     h.setFormatter(fmt)
-    log.addHandler(h)
+    logging.getLogger().addHandler(h)
 
 if __name__ == "__main__":
     setup_logging()
