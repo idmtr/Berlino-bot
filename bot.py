@@ -21,6 +21,8 @@ except:
 	TOKEN = 'Manually set the API Token if youre not running through heroku or have not set vars in ENV'
 ###############################################################
 
+SNEAKY_USER_AGENT = headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.75 Safari/537.36'}
+
 _self_uid = None
 
 SlackURL = namedtuple('SlackURL', ['original', 'transformed'])
@@ -127,7 +129,9 @@ def handle_message(event):
 
         for slack_url in slack_urls:
             log.debug('URL-Fetcher: Checking %s', slack_url)
-            req = requests.head(slack_url.transformed, allow_redirects=True)
+            req = requests.head(slack_url.transformed,
+                    headers={'User-Agent': SNEAKY_USER_AGENT},
+                    allow_redirects=True)
             final_url = req.url
             log.debug('Redirected URL was: %s', final_url)
             if not is_human_equal(slack_url.transformed, final_url):
