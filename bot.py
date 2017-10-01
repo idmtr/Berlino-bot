@@ -117,11 +117,18 @@ def handle_message(event):
         cid = event['channel']
         slack_urls = extract_slack_urls(event['text'])
 
+        redirects = []
+
         for slack_url in slack_urls:
             req = requests.get(slack_url.transformed)
-            if not is_human_equal(slack_url.transformed, req.url):
-                message = " ".join(["Redirect alert:", slack_url.original, "redirects to", req.url])
-                send_message(cid, message)
+            final_url = req.url
+            if not is_human_equal(slack_url.transformed, final_url):
+                redirects.append("{url} redirects to {final_url}".format(
+                    url=slack_url.original, final_url=final_url))
+
+        if redirects:
+            notice = "Redirection notice: {}".format(", ".join(redirects))
+            send_message(cid, notice)
 
 
 def start_rtm():
