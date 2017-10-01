@@ -1,7 +1,6 @@
 import websocket
 import json
 import requests
-import urllib
 import os
 import ssl
 from collections import namedtuple
@@ -94,18 +93,27 @@ def is_regular_message(message):
     )
 
 
-def send_message(cid, message):
-    return requests.post("https://slack.com/api/chat.postMessage?token="+TOKEN+"&channel="+cid+"&text="+urllib.quote(message)+"&parse=full&as_user=true")
+def send_message(cid, text):
+    return requests.post('https://slack.com/api/chat.postMessage',
+            params=dict(
+                token=TOKEN,
+                channel=cid,
+                text=text,
+                parse='full',
+                as_user='true'))
 
 
 def parse_join(message):
     m = json.loads(message)
 
     if m['type'] == "team_join":
-        x = requests.get("https://slack.com/api/im.open?token="+TOKEN+"&user="+m["user"]["id"])
-        x = x.json()
-        x = x["channel"]["id"]
-        send_message(x, MESSAGE)
+        uid = m['user']['id']
+        resp = requests.post('https://slack.com/api/im.open',
+                params=dict(
+                    token=TOKEN,
+                    user=uid)).json()
+        cid = resp['channel']['id']
+        send_message(cid, MESSAGE)
 
         #DEBUG
         #print '\033[91m' + "HELLO SENT" + m["user"]["id"] + '\033[0m'
@@ -123,10 +131,12 @@ def parse_join(message):
 
 def start_rtm():
     """Connect to slack and initiate socket handshake; returns JSON response"""
-    r = requests.get("https://slack.com/api/rtm.start?token="+TOKEN, verify=False)
-    r = r.json()
-    r = r["url"]
-    return r
+    resp = requests.post("https://slack.com/api/rtm.start",
+            params=dict(
+                token=TOKEN),
+            verify=False)
+    json = resp.json()
+    return json['url']
 
 
 def on_message(ws, message):
