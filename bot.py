@@ -187,6 +187,6 @@ def main():
 
 
 if __name__ == "__main__":
-    log.setLevel(log.INFO)
+    log.setLevel(logging.INFO)
     log.info("🤖 Berlino-Bot Boot Sequence Initiated 🤖")
     main()
