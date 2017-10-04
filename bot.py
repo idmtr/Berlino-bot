@@ -27,66 +27,46 @@ SNEAKY_USER_AGENT = headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS
 
 _self_uid = None
 
-SlackURL = namedtuple('SlackURL', ['original', 'transformed'])
+SlackURL = namedtuple('SlackURL', ['text', 'url'])
 
 
-def normalize_url_human(url):
+def extract_root_domain(url):
     """
-    >>> normalize_url_human("http://www.google.com").geturl()
-    '//google.com'
-    >>> normalize_url_human("https://google.com").geturl()
-    '//google.com'
-    >>> normalize_url_human("https://google.com/").geturl()
-    '//google.com'
-    >>> normalize_url_human("https://google.com/derp").geturl()
-    '//google.com/derp'
+    >>> extract_root_domain("http://www.google.com")
+    'google.com'
+    >>> extract_root_domain("http://GOOGLE.com")
+    'google.com'
+    >>> extract_root_domain("http://foo")
+    'foo'
     """
-
     parsed_url = urlparse.urlparse(url)
-    dict_ = parsed_url._asdict()
-    dict_['scheme'] = ""
-    dict_['netloc'] = dict_['netloc'][4:] if dict_['netloc'].startswith("www.") else dict_['netloc']
-    dict_['path'] = "" if dict_['path'] == "/" else dict_['path']
-
-    return urlparse.ParseResult(**dict_)
+    root_domain = parsed_url.netloc.rsplit('.', 2)[-2:]
+    return '.'.join(root_domain).lower()
 
 
-def is_human_equal(url1, url2):
-    """
-    >>> is_human_equal("http://google.com/", "http://google.com/")
-    True
-    >>> is_human_equal("http://google.com/", "https://google.com/")
-    True
-    >>> is_human_equal("http://google.com/", "http://bing.com/")
-    False
-    >>> is_human_equal("http://google.com/", "http://www.google.com/")
-    True
-    >>> is_human_equal("http://google.com", "http://google.com/")
-    True
-    """
-
-    return normalize_url_human(url1) == normalize_url_human(url2)
+def same_root_domains(url1, url2):
+    return extract_root_domain(url1) == extract_root_domain(url2)
 
 
 def extract_slack_urls(message):
     """
     >>> extract_slack_urls("derp <http://google.com|google.com> herp")
-    [SlackURL(original='google.com', transformed='http://google.com')]
+    [SlackURL(text='google.com', url='http://google.com')]
     >>> extract_slack_urls("derp <http://google.com|google.com> <http://bing.com|bing.com> herp")
-    [SlackURL(original='google.com', transformed='http://google.com'), SlackURL(original='bing.com', transformed='http://bing.com')]
+    [SlackURL(text='google.com', url='http://google.com'), SlackURL(text='bing.com', url='http://bing.com')]
     >>> extract_slack_urls("derp <http://bit.ly/installfreemyapps> herp")
-    [SlackURL(original='http://bit.ly/installfreemyapps', transformed='http://bit.ly/installfreemyapps')]
+    [SlackURL(text='http://bit.ly/installfreemyapps', url='http://bit.ly/installfreemyapps')]
     >>> extract_slack_urls("derp google.com herp")
     []
     """
 
     def slack_url(wrapped_url):
         if '|' in wrapped_url:
-            transformed_url, original_url = wrapped_url.split('|', 1)
+            url, text = wrapped_url.split('|', 1)
         else:
-            transformed_url = original_url = wrapped_url
+            url = text = wrapped_url
 
-        return SlackURL(original_url, transformed_url)
+        return SlackURL(text, url)
 
     wrapped_urls = re.findall(r'<(http[^>]+)>', message)
 
@@ -128,29 +108,29 @@ def handle_message(event):
 
 
 def parse_urls(event):
-    cid = event['channel']
     slack_urls = extract_slack_urls(event['text'])
 
     redirects = []
 
     for slack_url in slack_urls:
         log.debug('URL-Fetcher: Checking %s', slack_url)
+        orig_url = slack_url.url
         try:
-            req = requests.head(slack_url.transformed,
+            req = requests.head(orig_url,
                     headers={'User-Agent': SNEAKY_USER_AGENT},
                     allow_redirects=True)
-        except requests.RequestException as e:
-            log.exception('Error fetching URL %s', slack_url)
+        except requests.RequestException:
+            log.debug('Error fetching URL: %s', orig_url)
         else:
             final_url = req.url
             log.debug('Redirected URL was: %s', final_url)
-            if not is_human_equal(slack_url.transformed, final_url):
-                redirects.append(":mag_right: {url} redirects to {final_url}".format(
-                    url=slack_url.original, final_url=final_url))
+            if not same_root_domains(orig_url, final_url):
+                redirects.append(":mag_right: {orig_url} redirects to {final_url}".format(
+                    orig_url=orig_url,
+                    final_url=final_url))
 
     if redirects:
-        notice = "\n".join(redirects)
-        send_message(cid, notice, unfurl_links='false')
+        send_message(event['channel'], "\n".join(redirects), unfurl_links='false')
 
 
 def start_rtm():
